@@ -25,6 +25,7 @@ The result object will have the following structure.
 {
     documents: Array; list of documents
     totalPages: Number; total number of pages, as per the `docsPerPage` value
+    totalRecords: Number; total record count
     prevPage: Number; the previous page number
     nextPage: Number; the next page number
 }
@@ -48,7 +49,7 @@ var UserSchema = new Schema({
 mongoosePages.skip(UserSchema); // makes the findPaginated() method available
 
 var docsPerPage = 10;
-var pageNumber = 1;
+var pageNumber = 0;
 
 var User = mongoose.model('User', UserSchema);
 User.findPaginated({}, function (err, result) {
@@ -85,6 +86,7 @@ The result object will have the following structure.
 {
     documents: Array; list of documents
     totalPages: Number; total page count
+    totalRecords: Number; total record count
     prevAnchorId: String; ObjectId which was used as the anchor id in the last request
     nextAnchorId: String; ObjectId which should be used as the anchor id in the next request
 }
@@ -138,6 +140,68 @@ User.findPaginated({}, function (err, result) {
 2. Pages cannot be referenced via page numbers.
 3. Cannot jump to pages. However, it can jump to anchor points, once you have the reference.
 
+###geoPaginate
+
+Pages mongoose collections with 2d geospatial indices
+
+The result object will have the following structure.
+
+```
+{
+    documents: Array; list of documents (note each document will contain a distance value from the location searched)
+    totalPages: Number; total number of pages, as per the `docsPerPage` value
+    totalRecords: Number; total record count
+    prevPage: Number; the previous page number
+    nextPage: Number; the next page number
+}
+```
+
+`prevPage` will be undefined for the first page. `nextPage` will be undefined for the last page.
+
+Here is an example of using the the geoPaginate method for implementing pagination.
+
+```
+var mongoose = require('mongoose');
+var Schema = mongoose.Schema;
+var mongoosePages = require('mongoose-pages');
+
+var UserSchema = new Schema({
+    username: String,
+    points: Number,
+    email: String,
+    address: String,
+    state: String,
+    country: String,
+    geo: {type: [Number], index: '2d'}  //geo should be stored [long, lat]
+})
+
+mongoosePages.geoPaginate(UserSchema); // makes the findGeoPaginate() method available
+
+var docsPerPage = 10;
+var pageNumber = 0;
+var multiplier = 3963.2; //3963.2 if unit is miles, 6378.1 if unit is km 
+var maxDistance = 10 / multiplier; //ex: within 10 miles
+var coordinate = [ -78.9175088000000073, 35.7178048999999973]  //coordinate to search nearby
+
+var conditions = {};
+conditions["state"] = "NC";
+conditions["country"] = "USA";
+
+//paginated results by nearest distance (result documents contain distance)
+User.findGeoPaginate(
+  "geo", //model column to search on
+  multiplier,
+  maxDistance,
+  docsPerPage,
+  pageNumber,
+  coordinate,
+  conditions,
+  function(err, locations){
+    if(err) { return handleError(res, err); }
+    return res.json(200, locations);
+  });
+    
+```
 
 ## License
 
